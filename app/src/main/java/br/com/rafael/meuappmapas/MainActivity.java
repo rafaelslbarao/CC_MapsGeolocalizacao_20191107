@@ -2,12 +2,19 @@ package br.com.rafael.meuappmapas;
 
 import android.Manifest;
 import android.content.pm.PackageManager;
+import android.location.Location;
 import android.os.Bundle;
+import android.os.Looper;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationCallback;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationResult;
+import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
@@ -27,6 +34,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private static final int REQUEST_PERMISSION_LOCATION = 1;
     private GoogleMap mapa;
     private List<Marker> markerList = new ArrayList<>();
+    //
+    private FusedLocationProviderClient locationClient;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,6 +43,11 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         setContentView(R.layout.activity_main);
         inicializaComponentes();
         verificaPermissoes();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
     }
 
     @Override
@@ -48,9 +62,10 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 if(grant != PackageManager.PERMISSION_GRANTED)
                 {
                     this.finish();
-                    break;
+                    return;
                 }
             }
+            inicializaCapturaLocalizacao();
         }
     }
 
@@ -68,7 +83,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         if(ACCESS_COARSE_LOCATION && ACCESS_FINE_LOCATION)
         {
-            //fazer o que quiser com a localização
+            inicializaCapturaLocalizacao();
         }
         else
         {
@@ -114,4 +129,41 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         //
         markerList.add(mapa.addMarker(markerOptions));
     }
+
+    private void inicializaCapturaLocalizacao()
+    {
+        locationClient = LocationServices.getFusedLocationProviderClient(this);
+        //
+        LocationRequest configuracaoLocalizacao = new LocationRequest();
+        configuracaoLocalizacao.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+        configuracaoLocalizacao.setInterval(1000);
+        configuracaoLocalizacao.setFastestInterval(1000);
+        //
+        locationClient.requestLocationUpdates(configuracaoLocalizacao,
+                locationCallback, Looper.getMainLooper());
+    }
+
+    private void cancelaCapturaLocalizacao()
+    {
+        //Cancela o listener de atualização
+        if(locationClient != null)
+            locationClient.removeLocationUpdates(locationCallback);
+    }
+
+    private LocationCallback locationCallback = new LocationCallback()
+    {
+        @Override
+        public void onLocationResult(LocationResult locationResult) {
+            Location ultimaLocalizacao = locationResult.getLastLocation();
+            LatLng latLng = new LatLng(ultimaLocalizacao.getLatitude()
+                    , ultimaLocalizacao.getLongitude());
+            adicionaMarcador(latLng);
+            //
+            CameraUpdate cameraUpdate = CameraUpdateFactory
+                    .newCameraPosition(CameraPosition.fromLatLngZoom(latLng, 10));
+            mapa.animateCamera(cameraUpdate);
+            //
+            cancelaCapturaLocalizacao();
+        }
+    };
 }
